@@ -4,7 +4,7 @@ import "soba://computer/R1"
 import {
     DeleteRow,
     NotFoundError,
-} from "https://sobamail.com/schema/base/v1?sha224=sjkAWvc3VZ-DG-K7hh0Q_mi-eEQp9Z1J2MCCLg";
+} from "https://sobamail.com/schema/base/v1?sha224=2rUWr0ErklopmK9ueYF9xcJHtFlwzf41rJtQgw";
 /* clang-format off */
 import {
     InitializeFolders,
