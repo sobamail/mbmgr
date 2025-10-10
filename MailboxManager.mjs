@@ -5,7 +5,7 @@ import {
     DeleteRow,
     Message,
     NotFoundError,
-} from "https://sobamail.com/module/base/v1?sha224=4OJfCNWuwKt56Q-B-0Erbxeo99GLQ7aN-M_VCQ";
+} from "https://sobamail.com/module/base/v1?sha224=LbrFSXuQxm2gn4-FaglNXRQbcv7kAz9Zew-p1A";
 /* clang-format off */
 import {
     InitializeFolders,
@@ -123,6 +123,8 @@ export default class MailboxManager {
                     checks : [
                         {op : "!=", value : null},
                         {op : "typeof", value : "text"},
+                        {op : "lww", value : true},
+                        {op : "regexp", value : "[a-z0-9_]+"},
                     ],
                 },
                 {
@@ -807,6 +809,7 @@ export default class MailboxManager {
     on_remove_message(content) {
         soba.log.debug(`Processing RemoveMessage event for folder '${content.folder}' message ${
                 content.message}`);
+
         let parent =
                 soba.data.find("messages", {folder : content.folder, message : content.message})
                         .hash;
