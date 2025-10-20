@@ -5,7 +5,7 @@ import {
     DeleteRow,
     Message,
     NotFoundError,
-} from "https://sobamail.com/module/base/v1?sha224=LbrFSXuQxm2gn4-FaglNXRQbcv7kAz9Zew-p1A";
+} from "https://sobamail.com/module/base/v1?sha224=KlP7z9DEJuUQ6gf8EJ8RDPoCynaxZMS6JRsVFQ";
 /* clang-format off */
 import {
     InitializeFolders,
