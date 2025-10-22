@@ -5,7 +5,7 @@ import {
     DeleteRow,
     Message,
     NotFoundError,
-} from "https://sobamail.com/module/base/v1?sha224=KlP7z9DEJuUQ6gf8EJ8RDPoCynaxZMS6JRsVFQ";
+} from "https://sobamail.com/module/base/v1?sha224=3r_5NPXDIX27Veoa5ieNq7kM6Bhv0OPZPxpVVw";
 /* clang-format off */
 import {
     InitializeFolders,
@@ -444,9 +444,6 @@ export default class MailboxManager {
     }
 
     process(message, meta) {
-        soba.log.debug("meta:   " + JSON.stringify(meta) + " mesg: " + JSON.stringify(message));
-        soba.log.debug("objkey: " + soba.app.objectKey() + " r: " + soba.app.isReplicated());
-
         if (meta.location == "limbo") {
             if (meta.type == "message") {
                 // This message has not been delivered yet (it's in limbo). Deliver it first
@@ -468,16 +465,10 @@ export default class MailboxManager {
                 throw new Error(`Unable to read message content`);
             }
 
-            soba.log.debug("content type: " + (typeof content));
-
-            if (content instanceof ArrayBuffer) {
-                // This means the data content was read but was not parsed correctly.
+            if (content instanceof ArrayBuffer) { // The data content could not be parsed correctly.
                 soba.log.error(`Message ${JSON.stringify(message)} contents were not recognized`);
             }
-            else {
-                // This means the message was deserialized successfully
-                soba.log.debug("Message structure: " + JSON.stringify(content));
-
+            else { // The message was deserialized successfully
                 if (content.name == "MessageTask"
                         && content.namespace == "https://sobamail.com/module/mailboxmanager/v1") {
                     throw new Error("MessageTask is not supposed to seep through to here");
@@ -491,9 +482,6 @@ export default class MailboxManager {
                     if (envelope === undefined) {
                         throw new Error(`Envelope is empty`);
                     }
-
-                    soba.log.debug(
-                            `Envelope format: ${envelope.format}, sender: ${envelope.sender}`);
 
                     content = envelope.content;
                 }
@@ -512,15 +500,12 @@ export default class MailboxManager {
 
         const rows = this.get_folders(fname, null).data;
         if (rows.length < 1) {
-            soba.log.error(`Folder "${fname}" not found`);
             throw new NotFoundError({id : fname, type : fname});
         }
 
         for (const row of rows) {
             soba.data.insert("messages", {folder : row[0], message : message.uuid, mirror : 0});
         }
-
-        soba.log.info(`Message: ${message.uuid} was delivered to inbox`);
     }
 
     get_folders(fname, parent) { //
@@ -635,12 +620,6 @@ export default class MailboxManager {
             throw new Error("empty key");
         }
 
-        soba.log.debug(`Processing SetAttrMessage event for` +
-                ` folder '${content.folder}'` +
-                ` message ${content.message}` +
-                ` key '${content.key}'` +
-                ` value '${content.value}'`);
-
         return soba.data.insert("message_attr", {
             folder : content.folder,
             message : content.message,
@@ -654,9 +633,6 @@ export default class MailboxManager {
         if (! content.key) { // https://stackoverflow.com/a/154068
             throw new Error("empty key");
         }
-
-        soba.log.debug(`Processing UnsetAttrMessage event for folder '${content.folder}' message ${
-                content.message}`);
 
         let parent = soba.data
                              .find("message_attr", {
@@ -672,9 +648,6 @@ export default class MailboxManager {
         if (! content.key) {
             throw new Error("empty key");
         }
-
-        soba.log.debug(`Processing SetAttrFolder event for folder '${content.folder}' key '${
-                content.key}' value '${content.value}'`);
 
         if (content.key === "name" && content.value.includes(":")) {
             throw new Error(`Invalid folder name: ${content.value}`);
@@ -698,17 +671,12 @@ export default class MailboxManager {
             throw new Error("empty key");
         }
 
-        soba.log.debug(`Processing UnsetAttrFolder event for folder '${content.folder}' key ${
-                content.key}`);
-
         let parent =
                 soba.data.find("folder_attr", {folder : content.folder, key : content.key}).hash;
         return soba.data.delete("folder_attr", parent);
     }
 
     on_create_folder(content) {
-        soba.log.debug(`Processing CreateFolder event for '${content.name}'`);
-
         // validate folder name
         const split_col = content.name.split(":");
         if (split_col.length !== 2) {
@@ -734,8 +702,6 @@ export default class MailboxManager {
 
             const rows = this.get_folders(fname, fuuid_parent).data;
             if (rows.length < 1) {
-                soba.log.error(
-                        `Folder '${user_name}:${fnames.splice(0, i + 1).join("/")}' not found`);
                 throw new NotFoundError({id : fname, type : fname});
             }
 
@@ -766,13 +732,10 @@ export default class MailboxManager {
     }
 
     on_insert_folder(content) {
-        soba.log.debug(`Processing InsertFolder event: '${JSON.stringify(content)}'`);
         return soba.data.insert("folders", {uuid : content.uuid, mirror : content.mirror});
     }
 
     on_delete_folder(content) {
-        soba.log.debug(`Processing DeleteFolder event for '${content.uuid}'`);
-
         /* clang-format off */
         const rows = soba.db.exec(
                   `WITH RECURSIVE children as (`
@@ -786,30 +749,20 @@ export default class MailboxManager {
                 .data;
         /* clang-format on */
 
-        soba.log.info(`Delete folders ${JSON.stringify(rows)}`);
-
         for (let i = 0, l = rows.length; i < l; ++i) {
             const row = rows[i];
             const fuuid = row[0];
             let parent = soba.data.find("folders", {uuid : fuuid}).hash;
             soba.data.delete("folders", parent);
-            soba.log.info(`Deleted folder ${fuuid}`);
         }
 
         let parent = soba.data.find("folders", {uuid : content.uuid}).hash;
         return soba.data.delete("folders", parent);
     }
 
-    on_add_message(content) {
-        soba.log.debug(`Processing AddMessage({folder: '${content.folder}', message: '${
-                content.message}'})`);
-        return soba.data.insert("messages", content);
-    }
+    on_add_message(content) { return soba.data.insert("messages", content); }
 
     on_remove_message(content) {
-        soba.log.debug(`Processing RemoveMessage event for folder '${content.folder}' message ${
-                content.message}`);
-
         let parent =
                 soba.data.find("messages", {folder : content.folder, message : content.message})
                         .hash;
@@ -817,22 +770,18 @@ export default class MailboxManager {
     }
 
     on_deliver_message(content) {
-        soba.log.debug(`Ignoring DeliverMessage event for message ${content.message}`);
+        soba.log.warning(`Ignoring DeliverMessage event for message ${content.message}`);
     }
 
     on_delivery_event(content) {
-        soba.log.info(`Ignoring DeliveryEvent event: ${JSON.stringify(content)}`);
+        soba.log.warning(`Ignoring DeliveryEvent event: ${JSON.stringify(content)}`);
     }
 
     on_grant_access(content) {
-        soba.log.debug(`Processing GrantAccess event for message '${content.message}' address ${
-                content.address}`);
         return soba.data.insert("access", {message : content.message, address : content.address});
     }
 
     on_revoke_access(content) {
-        soba.log.debug(`Processing RevokeAccess event for message '${content.message}' address ${
-                content.address}`);
         let parent =
                 soba.data.find("access", {message : content.message, address : content.address})
                         .hash;
@@ -840,13 +789,10 @@ export default class MailboxManager {
     }
 
     on_set_attr(content) {
-        soba.log.debug(
-                `Processing SetAttr event for key '${content.key}' value '${content.value}'`);
         return soba.data.insert("attr", {key : content.key, value : content.value});
     }
 
     on_unset_attr(content) {
-        soba.log.debug(`Processing UnsetAttr event for key '${content.key}'`);
         let parent = soba.data.find("state", {key : content.key}).hash;
         return soba.data.delete("state", parent);
     }
