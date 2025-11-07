@@ -5,7 +5,7 @@ import {
     DeleteRow,
     Message,
     NotFoundError,
-} from "https://sobamail.com/module/base/v1?sha224=3r_5NPXDIX27Veoa5ieNq7kM6Bhv0OPZPxpVVw";
+} from "https://sobamail.com/module/base/v1?sha224=lHPRerLbiqHkAShgnv6sjCjr_ReFSXlDJTe6Ew";
 /* clang-format off */
 import {
     InitializeFolders,
@@ -457,10 +457,10 @@ export default class MailboxManager {
             // dispatch function
             this.on_structured(message);
         }
-        else if (meta.type == "message" && message.dataBody !== undefined) {
+        else if (meta.type == "message" && message.bodyObject !== undefined) {
             // Here it's a structured email so we need to do some digging
             // to get to the content object
-            let content = message.bodyData;
+            let content = message.bodyObject;
             if (content === undefined) {
                 throw new Error(`Unable to read message content`);
             }
