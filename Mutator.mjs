@@ -1,11 +1,11 @@
 ﻿
-import "soba://computer/R1"
+import "soba://computer/R2"
 
 import {
     DeleteRow,
     Message,
     NotFoundError,
-} from "https://sobamail.com/module/base/v1?sha224=lHPRerLbiqHkAShgnv6sjCjr_ReFSXlDJTe6Ew";
+} from "https://sobamail.com/module/base/v1?sha224=LbfSklK0ZN9Fqv2PUhX7gN4BidTZ0oqseuYDTA";
 /* clang-format off */
 import {
     InitializeFolders,
@@ -31,13 +31,7 @@ import {
     MessageTask,
     DeliverMessage,
     DeliveryEvent,
-
-    GetRules,
-    AddRule,
-    AddHeaderCondition,
-    AddBodyCondition,
-    AddFileIntoAction,
-} from "https://sobamail.com/module/mailboxmanager/v1?sha224=czB5JvZ60YT1fr_zpGLhKsuG-FNaavmzpUhyyw";
+} from "https://sobamail.com/module/mailboxmanager/v1?sha224=nA1p15BKmVkeVIK1Hx2JsQEKc9m5VENsl8uQzw";
 /* clang-format on */
 
 class InvalidFolderName extends Error {
@@ -104,12 +98,6 @@ export default class MailboxManager {
 
         [ DeliverMessage.KEY, false ],
         [ DeliveryEvent.KEY, false ],
-
-        [ GetRules.KEY, false ],
-        [ AddRule.KEY, false ],
-        [ AddHeaderCondition.KEY, false ],
-        [ AddBodyCondition.KEY, false ],
-        [ AddFileIntoAction.KEY, false ],
     ]);
 
     constructor() {
@@ -297,150 +285,6 @@ export default class MailboxManager {
                 },
             ],
         });
-
-        /*
-         * rules
-         */
-        soba.schema.table({
-            name : "rules",
-            insertEvent : AddRule,
-            deleteEvent : DeleteRow,
-            columns : [
-                {
-                    name : "uuid",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                        {op : "regexp", value : soba.type.uuid.pattern},
-                        {op : "lww", value : true},
-                    ],
-                },
-                {
-                    name : "label",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                    ],
-                },
-                {
-                    name : "type",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                        {op : "in", value : [ "all", "any" ]},
-                    ],
-                },
-            ],
-        });
-
-        soba.schema.table({
-            name : "rule_cond_header",
-            insertEvent : AddHeaderCondition,
-            deleteEvent : DeleteRow,
-            columns : [
-                {
-                    name : "rule",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "fk", table : "rules", column : "uuid"},
-                    ],
-                },
-                {
-                    name : "key",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                    ],
-                },
-                {
-                    name : "op",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                        {
-                            op : "in",
-                            value : [
-                                "contains",
-                                "not contains",
-                                "is",
-                                "is not",
-                                "starts",
-                                "ends",
-                            ],
-                        },
-                    ],
-                },
-                {
-                    name : "value",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                    ],
-                },
-            ],
-        });
-
-        soba.schema.table({
-            name : "rule_cond_body",
-            insertEvent : AddBodyCondition,
-            deleteEvent : DeleteRow,
-            columns : [
-                {
-                    name : "rule",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "fk", table : "rules", column : "uuid"},
-                    ],
-                },
-                {
-                    name : "op",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                        {
-                            op : "in",
-                            value : [
-                                "contains",
-                                "not contains",
-                                "is",
-                                "is not",
-                                "starts",
-                                "ends",
-                            ],
-                        },
-                    ],
-                },
-                {
-                    name : "value",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                    ],
-                },
-            ],
-        });
-
-        soba.schema.table({
-            name : "rule_act_fileinto",
-            insertEvent : AddFileIntoAction,
-            deleteEvent : DeleteRow,
-            columns : [
-                {
-                    name : "rule",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "fk", table : "rules", column : "uuid"},
-                    ],
-                },
-                {
-                    name : "target",
-                    checks : [
-                        {op : "!=", value : null},
-                        {op : "typeof", value : "text"},
-                    ],
-                },
-            ],
-        });
     }
 
     process(message, meta) {
@@ -591,28 +435,7 @@ export default class MailboxManager {
             return this.on_init_messages_request(message.content);
         }
 
-        if (key == GetRules.KEY) {
-            return this.on_get_rules(message, meta);
-        }
-
         throw new Error("No rw handler found for object " + key);
-    }
-
-    on_get_rules(message) {
-        soba.mail.reply(new Rules([
-            {
-                uuid : "{12345678-abcd-dead-1234455695878}",
-                label : "PostgreSQL HACKERS ML",
-                conditions : [
-                    {}, // etc
-                ],
-                actions : [
-                    {}, // etc.
-                ],
-                // etc
-            },
-            // etc
-        ]));
     }
 
     on_set_attr_message(content) {
