@@ -1,11 +1,13 @@
 ﻿
-import "soba://computer/R2"
+import "soba://computer/R2";
 
 import {
     DeleteRow,
     Message,
-    NotFoundError,
-} from "https://sobamail.com/module/base/v1?sha224=LbfSklK0ZN9Fqv2PUhX7gN4BidTZ0oqseuYDTA";
+} from "https://sobamail.com/module/base/v1?sha224=7VxiNiRp9EhKFTmiYDW3d_Cu-1_TVdnQdEWBjw";
+import {
+    Filter
+} from "https://sobamail.com/module/mailboxmanager/filter/v1?sha224=4TP8-wBx8JPUO5edspBpgc4RNWNjvxNpxtdzRw";
 /* clang-format off */
 import {
     InitializeFolders,
@@ -25,45 +27,38 @@ import {
     SetAttrMessage,
     UnsetAttrMessage,
 
+    AddIdentity,
+    AddIdentityAttr,
+
+    AddFilter,
+    AddFilterAttr,
+    AddFilterCond,
+    AddFilterActionFileinto,
+    AddFilterActionDelete,
+    RemoveFilter,
+
     GrantAccess,
     RevokeAccess,
 
     MessageTask,
     DeliverMessage,
     DeliveryEvent,
-} from "https://sobamail.com/module/mailboxmanager/v1?sha224=nA1p15BKmVkeVIK1Hx2JsQEKc9m5VENsl8uQzw";
+
+    UserInfoGet,
+    UserInfoPut,
+
+    LimitsGet,
+    LimitsPut,
+
+    AddRole,
+    RevokeRole,
+
+    QSTR_GET_FOLDERS,
+} from "https://sobamail.com/module/mailboxmanager/v1?sha224=8ENSTcPHYyb8YR2AmfV-F69eRDPs-Xrnd4-Jiw";
 /* clang-format on */
 
-class InvalidFolderName extends Error {
-    constructor(folder) { super(`Folder name '${folder}' is invalid`); }
-}
-
-class AccountMismatch extends Error {
-    constructor(account) {
-        super(`Unknown account '${account}'. Expected: '${soba.app.account()}'`);
-    }
-}
-
-class FolderMissingParent extends Error {
-    constructor(folder) { super(`Missing parent CreateFolder request for '${folder}'`); }
-}
-
-/* clang-format off */
-const QSTR_GET_FOLDERS =
-        `WITH RECURSIVE`
-    + ` l as (SELECT value as v FROM attr WHERE key='locale')`
-    + `,fnames AS (`
-    + ` SELECT f.uuid FROM folders f`
-    + ` JOIN folder_attr fs ON fs.folder=f.uuid`
-    + ` WHERE key='name' AND lower(value,(SELECT v FROM l))=lower(?,(SELECT v FROM l))`
-    + ` UNION`
-    + ` SELECT f.uuid FROM folders f`
-    + ` JOIN folder_attr fs ON fs.folder=f.uuid`
-    + ` JOIN fnames fn ON fs.folder=fn.uuid`
-    + ` WHERE key='parent' AND lower(value,(SELECT v FROM l))=lower(?,(SELECT v FROM l))`
-    + `)`
-    + ` SELECT uuid from fnames`;
-/* clang-format on */
+const NS_BASE = "https://sobamail.com/module/base/v1";
+const NS_MBMGR = "https://sobamail.com/module/mailboxmanager/v1";
 
 export default class MailboxManager {
     static id = "mailboxmanager.core.app.sobamail.com";
@@ -86,7 +81,7 @@ export default class MailboxManager {
         [ CreateFolder.KEY, false ],
         [ DeleteFolder.KEY, false ],
         [ SetAttrFolder.KEY, false ],
-        [ UnsetAttrMessage.KEY, false ],
+        [ UnsetAttrFolder.KEY, false ],
 
         [ AddMessage.KEY, false ],
         [ RemoveMessage.KEY, false ],
@@ -98,6 +93,78 @@ export default class MailboxManager {
 
         [ DeliverMessage.KEY, false ],
         [ DeliveryEvent.KEY, false ],
+
+        [ AddIdentity.KEY, false ],
+        [ AddIdentityAttr.KEY, false ],
+
+        [ AddFilter.KEY, false ],
+        [ AddFilterAttr.KEY, false ],
+        [ AddFilterCond.KEY, false ],
+        [ AddFilterActionFileinto.KEY, false ],
+        [ AddFilterActionDelete.KEY, false ],
+        [ RemoveFilter.KEY, false ],
+
+        [ AddRole.KEY, false ],
+        [ RevokeRole.KEY, false ],
+
+        [ UserInfoGet.KEY, false ],
+        [ UserInfoPut.KEY, false ],
+
+        [ LimitsGet.KEY, false ],
+        [ LimitsPut.KEY, false ],
+    ]);
+
+    static handlers = new Map([
+        [ SetAttr.KEY, (content) => (new SetAttr(content)).process() ],
+        [ UnsetAttr.KEY, (content) => (new UnsetAttr(content)).process() ],
+
+        [ InsertFolder.KEY, (content) => (new InsertFolder(content)).process() ],
+        [ CreateFolder.KEY, (content) => (new CreateFolder(content)).process() ],
+        [ DeleteFolder.KEY, (content) => (new DeleteFolder(content)).process() ],
+        [ SetAttrFolder.KEY, (content) => (new SetAttrFolder(content)).process() ],
+        [ UnsetAttrFolder.KEY, (content) => (new UnsetAttrFolder(content)).process() ],
+
+        [ AddMessage.KEY, (content) => (new AddMessage(content)).process() ],
+        [ RemoveMessage.KEY, (content) => (new RemoveMessage(content)).process() ],
+        [ SetAttrMessage.KEY, (content) => (new SetAttrMessage(content)).process() ],
+        [ UnsetAttrMessage.KEY, (content) => (new UnsetAttrMessage(content)).process() ],
+
+        [ GrantAccess.KEY, (content) => (new GrantAccess(content)).process() ],
+        [ RevokeAccess.KEY, (content) => (new RevokeAccess(content)).process() ],
+
+        [ DeliverMessage.KEY, (content) => (new DeliverMessage(content)).process() ],
+        [ DeliveryEvent.KEY, (content) => (new DeliveryEvent(content)).process() ],
+
+        [
+            InitializeFolders.KEY,
+            () => soba.task.emit(new InitializeFolders({schema : MailboxManager.schema}))
+        ],
+        [
+            InitializeMessages.KEY,
+            () => soba.task.emit(new InitializeMessages({schema : MailboxManager.schema}))
+        ],
+
+        [ AddRole.KEY, (content) => (new AddRole(content)).process() ],
+        [ RevokeRole.KEY, (content) => (new RevokeRole(content)).process() ],
+
+        [ AddIdentity.KEY, (content) => (new AddIdentity(content)).process() ],
+        [ AddIdentityAttr.KEY, (content) => (new AddIdentityAttr(content)).process() ],
+
+        [ AddFilter.KEY, (content) => (new AddFilter(content)).process() ],
+        [ AddFilterAttr.KEY, (content) => (new AddFilterAttr(content)).process() ],
+        [ AddFilterCond.KEY, (content) => (new AddFilterCond(content)).process() ],
+        [
+            AddFilterActionFileinto.KEY,
+            (content) => (new AddFilterActionFileinto(content)).process()
+        ],
+        [ AddFilterActionDelete.KEY, (content) => (new AddFilterActionDelete(content)).process() ],
+        [ RemoveFilter.KEY, (content) => (new RemoveFilter(content)).process() ],
+
+        [ UserInfoGet.KEY, (content) => (new UserInfoGet(content)).process() ],
+        [ UserInfoPut.KEY, (content) => (new UserInfoPut(content)).process() ],
+
+        [ LimitsGet.KEY, (content) => (new LimitsGet(content)).process() ],
+        [ LimitsPut.KEY, (content) => (new LimitsPut(content)).process() ],
     ]);
 
     constructor() {
@@ -118,6 +185,98 @@ export default class MailboxManager {
                 {
                     name : "value",
                     checks : [],
+                },
+            ],
+        });
+
+        /*
+         * Roles
+         */
+        soba.schema.table({
+            name : "roles",
+            insertEvent : AddRole,
+            deleteEvent : DeleteRow,
+            columns : [
+                {
+                    name : "name",
+                    checks : [
+                        {op : "!=", value : ""},
+                        {op : "!=", value : null},
+                        {op : "typeof", value : "text"},
+                    ],
+                },
+                {
+                    name : "domain",
+                    checks : [
+                        {op : "regexp", value : soba.type.domainName.pattern},
+                    ],
+                },
+                {
+                    name : "user",
+                    checks : [
+                        {op : "regexp", value : soba.type.userName.pattern},
+                    ],
+                },
+            ],
+            checks : [
+                {
+                    columns : [ "name", "domain", "user" ],
+                    op : "lww",
+                    value : true,
+                },
+            ],
+        });
+
+        /*
+         * Identities
+         */
+
+        soba.schema.table({
+            name : "iden",
+            insertEvent : AddIdentity,
+            deleteEvent : DeleteRow,
+            columns : [
+                {
+                    name : "address",
+                    checks : [
+                        {op : "!=", value : null},
+                        {op : "typeof", value : "text"},
+                        {op : "lww", value : true},
+                        {op : "regexp", value : soba.type.address.pattern},
+                    ],
+                },
+            ],
+        });
+
+        soba.schema.table({
+            name : "iden_attr",
+            insertEvent : AddIdentityAttr,
+            deleteEvent : DeleteRow,
+            columns : [
+                {
+                    name : "address",
+                    checks : [
+                        {op : "!=", value : null},
+                        {op : "fk", table : "iden", column : "address"},
+                    ],
+                },
+                {
+                    name : "key",
+                    checks : [
+                        {op : "!=", value : null},
+                        {op : "typeof", value : "text"},
+                    ],
+                },
+                {
+                    name : "value",
+                    checks : [],
+                },
+            ],
+            checks : [
+                {
+                    columns : [ "address", "key" ],
+                    op : "lww",
+                    value : true,
                 },
             ],
         });
@@ -234,9 +393,6 @@ export default class MailboxManager {
             insertEvent : SetAttrMessage,
             deleteEvent : DeleteRow,
             columns : [
-                // buradaki kolon sirasi message_attr'in hangi parenta baglanacagini belirliyor.
-                // ilerde bunu fk graph'ini sadelestirerek kestirmeleri elimine eden bir calisma
-                // yapmak gerekecek
                 {
                     name : "message",
                     checks : [
@@ -285,346 +441,136 @@ export default class MailboxManager {
                 },
             ],
         });
+
+        // Initialize the filtering subsystem
+        this.filter = new Filter();
     }
 
     process(message, meta) {
+        // Delivery shortcut
         if (meta.location == "limbo") {
             if (meta.type == "message") {
                 // This message has not been delivered yet (it's in limbo). Deliver it first
-                return this.on_email(message);
+                this.on_email(message);
+                return;
             }
 
             throw new Error(`Request type '${meta.type}' can not be in limbo`);
         }
-        else if (meta.type == "task" || meta.type == "task-replay") {
-            // a task only has the content, so it's safe to just pass it to the
-            // dispatch function
+
+        // Local task shortcut
+        if (meta.type == "task" || meta.type == "task-replay") {
+            // This is a task.
+            // A task only has the content, so it's safe to just pass it to the dispatch function
             this.on_structured(message);
+            return;
         }
-        else if (meta.type == "message" && message.bodyObject !== undefined) {
-            // Here it's a structured email so we need to do some digging
-            // to get to the content object
-            let content = message.bodyObject;
+
+        if (meta.type == "message" && message.bodyObject !== undefined) {
+            // This is a structured message.
+            // We need to do some digging to get to the content object
+            const content = message.bodyObject.content;
             if (content === undefined) {
-                throw new Error(`Unable to read message content`);
+                soba.log.error(
+                        `Discarding SMessage ${message.uuid}: unable to read message content`);
+                return; // discards the message
             }
 
-            if (content instanceof ArrayBuffer) { // The data content could not be parsed correctly.
-                soba.log.error(`Message ${JSON.stringify(message)} contents were not recognized`);
+            if (content instanceof ArrayBuffer) { // The data content could not be parsed correctly
+                soba.log.error(`Discarding SMessage ${message.uuid}: contents were not recognized`);
+                return; // discards the message
             }
-            else { // The message was deserialized successfully
-                if (content.name == "MessageTask"
-                        && content.namespace == "https://sobamail.com/module/mailboxmanager/v1") {
-                    throw new Error("MessageTask is not supposed to seep through to here");
+
+            // The message was deserialized successfully, now let's validate the object
+            if (! content.namespace) {
+                soba.log.error(`Discarding SMessage ${message.uuid}: content ${
+                        JSON.stringify(content)} null or empty namespace`);
+                return; // discards the message
+            }
+
+            if (! content.name) {
+                soba.log.error(`Discarding SMessage ${message.uuid}: content ${
+                        JSON.stringify(content)} null or empty name`);
+                return; // discards the message
+            }
+
+            if (content.name == "MessageTask" && content.namespace == NS_MBMGR) {
+                soba.log.error(`Discarding SMessage ${message.uuid}:` +
+                        ` A MessageTask is not supposed to reach this point`);
+                return; // discards the message
+            }
+
+            // If it was a signed and/or encrypted message, it will be wrapped
+            // in an Envelope object, so let's dig further if that's the case.
+            if (content.name == "Envelope" && content.namespace == NS_BASE) {
+                let envelope = content.content;
+                if (envelope === undefined) {
+                    soba.log.error(`Discarding SMessage ${message.uuid}: Envelope is empty`);
+                    return; // discards the message
                 }
 
-                // If it was a signed and/or encrypted message, it will be wrapped
-                // in an Envelope object, so let's dig further if that's the case.
-                if (content.name == "Envelope"
-                        && content.namespace == "https://sobamail.com/module/base/v1") {
-                    let envelope = content.content;
-                    if (envelope === undefined) {
-                        throw new Error(`Envelope is empty`);
-                    }
+                // Envelope payload is our actual content, so replace it
+                content = envelope.content;
 
-                    content = envelope.content;
+                if (! content.namespace) {
+                    soba.log.error(`Discarding SMessage ${message.uuid}: content ${
+                            JSON.stringify(content)} null or empty object namespace`);
+                    return; // discards the message
                 }
 
-                // Finally we have the content, let's process it
-                this.on_structured(content);
+                if (! content.name) {
+                    soba.log.error(`Discarding SMessage ${message.uuid}: content ${
+                            JSON.stringify(content)} null or empty object name`);
+                    return; // discards the message
+                }
+
+                if (content.name == "MessageTask" && content.namespace == NS_MBMGR) {
+                    soba.log.error(`Discarding SMessage ${message.uuid}:` +
+                            ` A MessageTask is not supposed to be enveloped`);
+                    return; // discards the message
+                }
             }
+
+            // Finally we have the content, let's process it
+            this.on_structured(content);
+
+            return;
         }
-        else {
-            this.on_email(message);
-        }
+
+        // we have no idea what this is, so deliver it
+        this.on_email(message);
     }
 
     on_email(message) {
-        let fname = `inbox`;
+        const folders = this.filter.evaluate_filters(message);
 
-        const rows = this.get_folders(fname, null).data;
-        if (rows.length < 1) {
-            throw new NotFoundError({id : fname, type : fname});
+        for (const fname of folders) {
+            const rows = soba.db.exec(QSTR_GET_FOLDERS, fname, null).data;
+            if (rows.length < 1) {
+                soba.log.warning(`on_email: target folder '${fname}' not found, skipping`);
+                continue;
+            }
+            for (const row of rows) {
+                soba.data.insert("messages", {folder : row[0], message : message.uuid, mirror : 0});
+            }
         }
-
-        for (const row of rows) {
-            soba.data.insert("messages", {folder : row[0], message : message.uuid, mirror : 0});
-        }
-    }
-
-    get_folders(fname, parent) { //
-        return soba.db.exec(QSTR_GET_FOLDERS, fname, parent);
     }
 
     on_structured(message) {
-        if (message.namespace === undefined) {
-            throw new Error("Message has no namespace");
+        if (! message.namespace) {
+            throw new Error(`Message has no namespace: ${JSON.stringify(message)}`);
         }
 
-        if (message.name === undefined) {
-            throw new Error("Message has no name");
+        if (! message.name) {
+            throw new Error(`Message has no name: ${JSON.stringify(message)}`);
         }
 
-        let key = `{${message.namespace}}${message.name}`;
-
-        if (key == SetAttrMessage.KEY) {
-            return this.on_set_attr_message(message.content);
+        const key = `{${message.namespace}}${message.name}`;
+        const handler = MailboxManager.handlers.get(key);
+        if (! handler) {
+            throw new Error(`No handler found for object '${key}'`);
         }
 
-        if (key == UnsetAttrMessage.KEY) {
-            return this.on_unset_attr_message(message.content);
-        }
-
-        if (key == AddMessage.KEY) {
-            return this.on_add_message(message.content);
-        }
-
-        if (key == RemoveMessage.KEY) {
-            return this.on_remove_message(message.content);
-        }
-
-        if (key == GrantAccess.KEY) {
-            return this.on_grant_access(message.content);
-        }
-
-        if (key == DeliverMessage.KEY) {
-            return this.on_deliver_message(message.content);
-        }
-
-        if (key == DeliveryEvent.KEY) {
-            return this.on_delivery_event(message.content);
-        }
-
-        if (key == RevokeAccess.KEY) {
-            return this.on_revoke_access(message.content);
-        }
-
-        if (key == SetAttrFolder.KEY) {
-            return this.on_set_attr_folder(message.content);
-        }
-
-        if (key == UnsetAttrFolder.KEY) {
-            return this.on_unset_attr_folder(message.content);
-        }
-
-        if (key == InsertFolder.KEY) {
-            return this.on_insert_folder(message.content);
-        }
-
-        if (key == CreateFolder.KEY) {
-            return this.on_create_folder(message.content);
-        }
-
-        if (key == DeleteFolder.KEY) {
-            return this.on_delete_folder(message.content);
-        }
-
-        if (key == SetAttr.KEY) {
-            return this.on_set_attr(message.content);
-        }
-
-        if (key == UnsetAttr.KEY) {
-            return this.on_unset_attr(message.content);
-        }
-
-        if (key == InitializeFolders.KEY) {
-            return this.on_init_folders_request(message.content);
-        }
-
-        if (key == InitializeMessages.KEY) {
-            return this.on_init_messages_request(message.content);
-        }
-
-        throw new Error("No rw handler found for object " + key);
-    }
-
-    on_set_attr_message(content) {
-        if (! content.key) { // https://stackoverflow.com/a/154068
-            throw new Error("empty key");
-        }
-
-        return soba.data.insert("message_attr", {
-            folder : content.folder,
-            message : content.message,
-            key : content.key,
-            value : content.value,
-            mirror : content.mirror,
-        });
-    }
-
-    on_unset_attr_message(content) {
-        if (! content.key) { // https://stackoverflow.com/a/154068
-            throw new Error("empty key");
-        }
-
-        let parent = soba.data
-                             .find("message_attr", {
-                                 folder : content.folder,
-                                 message : content.message,
-                                 key : content.key,
-                             })
-                             .hash;
-        return soba.data.delete("message_attr", parent);
-    }
-
-    on_set_attr_folder(content) {
-        if (! content.key) {
-            throw new Error("empty key");
-        }
-
-        if (content.key === "name" && content.value.includes(":")) {
-            throw new Error(`Invalid folder name: ${content.value}`);
-        }
-
-        if (content.key === "name" && content.value === content.folder) {
-            throw new Error(`Heuristic: Probably invalid folder name: ${content.value}`);
-        }
-
-        let parent = soba.data.find("folders", {uuid : content.folder}).hash;
-        return soba.data.insert("folder_attr", {
-            folder : content.folder,
-            key : content.key,
-            value : content.value,
-            mirror : content.mirror
-        });
-    }
-
-    on_unset_attr_folder(content) {
-        if (! content.key) {
-            throw new Error("empty key");
-        }
-
-        let parent =
-                soba.data.find("folder_attr", {folder : content.folder, key : content.key}).hash;
-        return soba.data.delete("folder_attr", parent);
-    }
-
-    on_create_folder(content) {
-        // validate folder name
-        const split_col = content.name.split(":");
-        if (split_col.length !== 2) {
-            throw new Error(`Invalid folder name '${content.name}'`);
-        }
-
-        // validate user name part
-        const user_name = split_col[0];
-        if (! soba.type.userName.isValid(user_name)) {
-            throw new Error(`Invalid user name in folder name '${content.name}'`);
-        }
-
-        let fuuid_parent = null;
-
-        // validate folder hierarchy part
-        const fnames = split_col[1].split("/");
-        for (let i = 0, l = fnames.length - 1; i < l; ++i) {
-            const fname = fnames[i];
-
-            if (! soba.type.folderName.isValid(fname)) {
-                throw new Error(`Invalid folder name fragment '${fname}' in '${content.name}'`);
-            }
-
-            const rows = this.get_folders(fname, fuuid_parent).data;
-            if (rows.length < 1) {
-                throw new NotFoundError({id : fname, type : fname});
-            }
-
-            fuuid_parent = rows[0][0];
-        }
-
-        // insert folder
-        const fuuid = content.uuid;
-        const folder = soba.data.insert("folders", {uuid : content.uuid, mirror : 0});
-
-        // set parent
-        if (fuuid_parent) {
-            // discard return value, just ensure parent folder exists
-            soba.data.find("folders", {uuid : fuuid_parent, mirror : 0});
-            soba.data.insert("folder_attr",
-                    {folder : fuuid, key : "parent", value : fuuid_parent, mirror : 0});
-        }
-        else {
-            soba.data.insert(
-                    "folder_attr", {folder : fuuid, key : "parent", value : null, mirror : 0});
-        }
-
-        // set name
-        soba.data.insert("folder_attr",
-                {folder : fuuid, key : "name", value : split_col[1].split("/").at(-1), mirror : 0});
-
-        return folder;
-    }
-
-    on_insert_folder(content) {
-        return soba.data.insert("folders", {uuid : content.uuid, mirror : content.mirror});
-    }
-
-    on_delete_folder(content) {
-        /* clang-format off */
-        const rows = soba.db.exec(
-                  `WITH RECURSIVE children as (`
-                + ` SELECT 0 as l,key,folder FROM folder_attr WHERE key='parent' and value=?`
-                + ` UNION`
-                + ` SELECT c.l+1 as l,fs.key,fs.folder FROM folder_attr fs`
-                + ` JOIN children c ON fs.value=c.folder WHERE fs.key=c.key`
-                + `)`
-                + `SELECT folder FROM children ORDER BY l DESC`, 
-            content.uuid)
-                .data;
-        /* clang-format on */
-
-        for (let i = 0, l = rows.length; i < l; ++i) {
-            const row = rows[i];
-            const fuuid = row[0];
-            let parent = soba.data.find("folders", {uuid : fuuid}).hash;
-            soba.data.delete("folders", parent);
-        }
-
-        let parent = soba.data.find("folders", {uuid : content.uuid}).hash;
-        return soba.data.delete("folders", parent);
-    }
-
-    on_add_message(content) { return soba.data.insert("messages", content); }
-
-    on_remove_message(content) {
-        let parent =
-                soba.data.find("messages", {folder : content.folder, message : content.message})
-                        .hash;
-        return soba.data.delete("messages", parent);
-    }
-
-    on_deliver_message(content) {
-        soba.log.warning(`Ignoring DeliverMessage event for message ${content.message}`);
-    }
-
-    on_delivery_event(content) {
-        soba.log.warning(`Ignoring DeliveryEvent event: ${JSON.stringify(content)}`);
-    }
-
-    on_grant_access(content) {
-        return soba.data.insert("access", {message : content.message, address : content.address});
-    }
-
-    on_revoke_access(content) {
-        let parent =
-                soba.data.find("access", {message : content.message, address : content.address})
-                        .hash;
-        return soba.data.delete("access", parent);
-    }
-
-    on_set_attr(content) {
-        return soba.data.insert("attr", {key : content.key, value : content.value});
-    }
-
-    on_unset_attr(content) {
-        let parent = soba.data.find("state", {key : content.key}).hash;
-        return soba.data.delete("state", parent);
-    }
-
-    on_init_folders_request(content) {
-        soba.task.emit(new InitializeFolders({schema : MailboxManager.schema}));
-    }
-
-    on_init_messages_request(content) {
-        soba.task.emit(new InitializeMessages({schema : MailboxManager.schema}));
+        return handler(message.content);
     }
 }
